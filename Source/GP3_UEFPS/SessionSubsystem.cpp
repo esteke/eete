@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+Ôªø// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "SessionSubsystem.h"
@@ -6,12 +6,12 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
 
-// UEë§Ç≈àÍî ìIÇ…égÇÌÇÍÇÈå≈íËñºÅi"GameSession"Åj
+// UEÂÅ¥„Åß‰∏ÄËà¨ÁöÑ„Å´‰Ωø„Çè„Çå„ÇãÂõ∫ÂÆöÂêçÔºà"GameSession"Ôºâ
 static const FName SESSION_NAME = NAME_GameSession;
 
 bool USessionSubsystem::EnsureOnline()
 {
-    // Online Subsystem ÇéÊìæÅiNull: LAN / Steam: Steam / EOS: Epic Ç»Ç«ÉvÉâÉbÉgÉtÉHÅ[ÉÄï Ç…êÿë÷Åj
+    // Online Subsystem „ÇíÂèñÂæóÔºàNull: LAN / Steam: Steam / EOS: Epic „Å™„Å©„Éó„É©„ÉÉ„Éà„Éï„Ç©„Éº„É†Âà•„Å´ÂàáÊõøÔºâ
     if (!OSS) OSS = IOnlineSubsystem::Get();
     if (!OSS) { UE_LOG(LogTemp, Error, TEXT("No OnlineSubsystem")); return false; }
 
@@ -26,42 +26,49 @@ void USessionSubsystem::ClearDelegates()
     if (!Session.IsValid()) return;
 
     if (OnCreateHandle.IsValid())  Session->ClearOnCreateSessionCompleteDelegate_Handle(OnCreateHandle);
+    if (OnStartHandle.IsValid())   Session->ClearOnStartSessionCompleteDelegate_Handle(OnStartHandle);
     if (OnDestroyHandle.IsValid()) Session->ClearOnDestroySessionCompleteDelegate_Handle(OnDestroyHandle);
+    if (OnFindHandle.IsValid())    Session->ClearOnFindSessionsCompleteDelegate_Handle(OnFindHandle);
+    if (OnJoinHandle.IsValid())    Session->ClearOnJoinSessionCompleteDelegate_Handle(OnJoinHandle);
 
-    OnCreateHandle.Reset();
-    OnDestroyHandle.Reset();
+    OnCreateHandle.Reset(); OnStartHandle.Reset(); OnDestroyHandle.Reset();
+    OnFindHandle.Reset();   OnJoinHandle.Reset();
 }
 
 void USessionSubsystem::CreateLanSession(int32 PublicConnections)
 {
     if (!EnsureOnline()) return;
 
-    // ä˘Ç…ìØñºÉZÉbÉVÉáÉìÇ™écÇ¡ÇƒÇ¢ÇΩÇÁîjä¸ÇµÇƒÇ©ÇÁçƒçÏê¨
+    // Êó¢„Å´ÂêåÂêç„Çª„ÉÉ„Ç∑„Éß„É≥„ÅåÊÆã„Å£„Å¶„ÅÑ„Åü„ÇâÁ†¥Ê£Ñ„Åó„Å¶„Åã„ÇâÂÜç‰ΩúÊàê
     if (Session->GetNamedSession(SESSION_NAME))
     {
         DestroyThenRecreate(PublicConnections);
         return;
     }
 
-    // === ÉZÉbÉVÉáÉìê›íË ===
+    // === „Çª„ÉÉ„Ç∑„Éß„É≥Ë®≠ÂÆö ===
     FOnlineSessionSettings Settings;
-    Settings.bIsLANMatch           = true;  // LANåüçıëŒè€Ç…Ç∑ÇÈÅiNull Subsystem ëOíÒÅj
-    Settings.bShouldAdvertise      = true;  // Find Ç…èoÇ∑
-    Settings.bAllowJoinInProgress  = true;  // ìríÜéQâ¡OK
-    Settings.bUsesPresence         = false; // Null/LANÇ»ÇÁïsóv
-    Settings.bUseLobbiesIfAvailable= false; // Null/LANÇ≈ÇÕÉçÉrÅ[ã@î\ÇÕégÇÌÇ»Ç¢
-    Settings.NumPublicConnections  = FMath::Max(1, PublicConnections); // éQâ¡ògÅiÉzÉXÉgèúÇ≠ògêîÇ≈OKÅj
+    Settings.bIsLANMatch = true;  // LANÊ§úÁ¥¢ÂØæË±°„Å´„Åô„ÇãÔºàNull Subsystem ÂâçÊèêÔºâ
+    Settings.bShouldAdvertise = true;  // Find „Å´Âá∫„Åô
+    Settings.bAllowJoinInProgress = true;  // ÈÄî‰∏≠ÂèÇÂä†OK
+    Settings.bUsesPresence = false; // Null/LAN„Å™„Çâ‰∏çË¶Å
+    Settings.bUseLobbiesIfAvailable = false; // Null/LAN„Åß„ÅØ„É≠„Éì„ÉºÊ©üËÉΩ„ÅØ‰Ωø„Çè„Å™„ÅÑ
+    Settings.NumPublicConnections = FMath::Max(1, PublicConnections); // ÂèÇÂä†Êû†Ôºà„Éõ„Çπ„ÉàÈô§„ÅèÊû†Êï∞„ÅßOKÔºâ
 
-    // ÉRÅ[ÉãÉoÉbÉNìoò^
+    // „Ç≥„Éº„É´„Éê„ÉÉ„ÇØÁôªÈå≤
+    ClearDelegates();
     OnCreateHandle = Session->AddOnCreateSessionCompleteDelegate_Handle(
         FOnCreateSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnCreateComplete));
+    OnStartHandle = Session->AddOnStartSessionCompleteDelegate_Handle(
+        FOnStartSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnStartComplete));
 
-    // é¿çsÅiUserIndex=0Ç≈OKÅBï°êîLocalPlayerÇ™Ç†ÇÈèÍçáÇÕêÿë÷Åj
+    // ÂÆüË°åÔºàUserIndex=0„ÅßOK„ÄÇË§áÊï∞LocalPlayer„Åå„ÅÇ„ÇãÂ†¥Âêà„ÅØÂàáÊõøÔºâ
     const bool bIssued = Session->CreateSession(/*LocalUserNum=*/0, SESSION_NAME, Settings);
     if (!bIssued)
     {
         UKismetSystemLibrary::PrintString(this, "CreateSession: immediate failure",
             true, true, FColor::Red, 4.f, TEXT("None"));
+        OnCreateFinished.Broadcast(false);
     }
 }
 
@@ -78,10 +85,105 @@ void USessionSubsystem::DestroyThenRecreate(int32 PublicConnections)
 
 void USessionSubsystem::OnCreateComplete(FName, bool bOk)
 {
-    // ÉZÉbÉVÉáÉìäJénÅiì‡ïîèÛë‘ÇÅuÉXÉ^Å[ÉgÅvÇ…Åj
+    OnCreateFinished.Broadcast(bOk);
+    if (!bOk) { ClearDelegates(); return; }
+
+    // „Çª„ÉÉ„Ç∑„Éß„É≥ÈñãÂßãÔºàÂÜÖÈÉ®Áä∂ÊÖã„Çí„Äå„Çπ„Çø„Éº„Éà„Äç„Å´Ôºâ
     Session->StartSession(SESSION_NAME);
 
     UKismetSystemLibrary::PrintString(this, "OnCreateComplete: Success!!",
         true, true, FColor::Cyan, 4.f, TEXT("None"));
 }
 
+void USessionSubsystem::OnStartComplete(FName, bool bOk)
+{
+    UE_LOG(LogTemp, Log, TEXT("StartSession: %s"), bOk ? TEXT("OK") : TEXT("NG"));
+}
+
+void USessionSubsystem::FindLanSessions(int32 MaxResults)
+{
+    if (!EnsureOnline()) return;
+
+    // Ê§úÁ¥¢Êù°‰ª∂„Çí‰Ωú„Çã
+    LastSearch = MakeShared<FOnlineSessionSearch>();
+    LastSearch->bIsLanQuery = true;               // LAN „Å´ÈôêÂÆö
+    LastSearch->MaxSearchResults = FMath::Clamp(MaxResults, 1, 2000);
+    LastSearch->QuerySettings.Set(SEARCH_PRESENCE, false, EOnlineComparisonOp::Equals);
+
+    ClearDelegates();
+    OnFindHandle = Session->AddOnFindSessionsCompleteDelegate_Handle(
+        FOnFindSessionsCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnFindComplete));
+
+    const bool bIssued = Session->FindSessions(/*LocalUserNum=*/0, LastSearch.ToSharedRef());
+    if (!bIssued)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FindSessions: immediate failure"));
+        LastRows.Reset();
+        OnFindFinished.Broadcast(LastRows);
+    }
+}
+
+void USessionSubsystem::OnFindComplete(bool bOk)
+{
+    LastRows.Reset();
+
+    if (bOk && LastSearch.IsValid())
+    {
+        int32 Index = 0;
+        for (const auto& R : LastSearch->SearchResults)
+        {
+            FFoundSessionRow Row;
+            Row.DisplayName = R.Session.OwningUserName; // Ë°®Á§∫ÂêçÔºàUI„ÅÆÈÉ®Â±ãÂêç„Å´‰Ωø„ÅÜÔºâ
+            Row.PingMs = R.PingInMs;
+            Row.OpenConnections = R.Session.NumOpenPublicConnections;
+            Row.MaxConnections = R.Session.SessionSettings.NumPublicConnections;
+            Row.SearchIndex = Index++;
+            LastRows.Add(Row);
+
+            UKismetSystemLibrary::PrintString(this, "OnFindComplete: Success!! :" + Row.DisplayName,
+                true, true, FColor::Yellow, 4.f, TEXT("None"));
+        }
+    }
+
+    OnFindFinished.Broadcast(LastRows);
+    ClearDelegates();
+}
+
+void USessionSubsystem::JoinBySearchIndex(int32 SearchIndex)
+{
+    if (!EnsureOnline() || !LastSearch.IsValid() || !LastSearch->SearchResults.IsValidIndex(SearchIndex))
+    {
+        OnJoinFinished.Broadcast(false);
+        return;
+    }
+
+    ClearDelegates();
+    OnJoinHandle = Session->AddOnJoinSessionCompleteDelegate_Handle(
+        FOnJoinSessionCompleteDelegate::CreateUObject(this, &USessionSubsystem::OnJoinComplete));
+
+    const bool bIssued = Session->JoinSession(/*LocalUserNum=*/0, SESSION_NAME, LastSearch->SearchResults[SearchIndex]);
+    if (!bIssued)
+    {
+        UE_LOG(LogTemp, Error, TEXT("JoinSession: immediate failure"));
+        OnJoinFinished.Broadcast(false);
+    }
+}
+
+void USessionSubsystem::OnJoinComplete(FName, EOnJoinSessionCompleteResult::Type Result)
+{
+    const bool bOk = (Result == EOnJoinSessionCompleteResult::Success);
+    OnJoinFinished.Broadcast(bOk);
+
+    if (!bOk) { ClearDelegates(); return; }
+
+    // ÂèÇÂä†ÂÖà„ÅÆÊé•Á∂öURL„Çí OnlineSubsystem „Åã„ÇâËß£Ê±∫„Åó„ÄÅ„ÇØ„É©„Ç§„Ç¢„É≥„ÉàÈÅ∑Áßª„Åô„Çã
+    FString Connect;
+    if (Session->GetResolvedConnectString(SESSION_NAME, Connect))
+    {
+        if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+        {
+            PC->ClientTravel(Connect, ETravelType::TRAVEL_Absolute);
+        }
+    }
+    ClearDelegates();
+}
