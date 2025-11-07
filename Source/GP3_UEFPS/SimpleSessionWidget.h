@@ -17,4 +17,5 @@ class GP3_UEFPS_API USimpleSessionWidget : public UUserWidget
 public:
 	UFUNCTION(BlueprintCallable) void CreateSession();
 	UFUNCTION(BlueprintCallable) void FindSession();
+	UFUNCTION(BlueprintCallable) void Print();
 };

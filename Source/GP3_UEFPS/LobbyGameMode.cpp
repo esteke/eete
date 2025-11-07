@@ -1,0 +1,83 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "LobbyGameMode.h"
+
+#include "Kismet/GameplayStatics.h"
+#include "SessionSubsystem.h"
+#include "OnlineSubsystem.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
+#include "Misc/CommandLine.h"
+
+
+FString ALobbyGameMode::InitNewPlayer(APlayerController* NewPlayer, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal)
+{
+    FString result = Super::InitNewPlayer(NewPlayer, UniqueId, Options, Portal);
+
+
+    // Options から NickName= を取得（URL に付けたやつがここに来る）
+    const FString Key = TEXT("NickName=");
+    const FString& OptionsStr = Options;
+    FString RawName;
+    int32 StartPos = OptionsStr.Find(Key, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+    if (StartPos != INDEX_NONE)
+    {
+        StartPos += Key.Len();
+        // '&' または終端までを切り出す
+        int32 EndPos = OptionsStr.Find(TEXT("?"), ESearchCase::IgnoreCase, ESearchDir::FromStart, StartPos);
+        if (EndPos == INDEX_NONE)
+        {
+            RawName = OptionsStr.Mid(StartPos);
+        }
+        else
+        {
+            RawName = OptionsStr.Mid(StartPos, EndPos - StartPos);
+        }
+    }
+
+    // クライアント側で URL エンコードしていた場合はデコード
+    if (!RawName.IsEmpty())
+    {
+        FString DecodedName = FGenericPlatformHttp::UrlDecode(RawName);
+        if (APlayerState* PS = NewPlayer->GetPlayerState<APlayerState>())
+        {
+            PS->SetPlayerName(DecodedName);
+            UKismetSystemLibrary::PrintString(this, TEXT("Join - ") + DecodedName,
+                true, true, FColor::Green, 6.f, TEXT("None"));
+        }
+    }
+    return result;
+}
+
+void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
+{
+    Super::PostLogin(NewPlayer);
+
+    // サーバー以外では処理しない
+    if (!HasAuthority()) return;
+
+    // スタンドアロン（ネットワークなし）なら無視
+    if (GetNetMode() == NM_Standalone) return;
+    // セッションが立っている（Listen化も済み）ときだけ扱う
+
+    IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+    if (OSS)
+    {
+        IOnlineSessionPtr Session = OSS->GetSessionInterface();
+        if (!Session.IsValid() || !Session->GetNamedSession(NAME_GameSession))
+        {
+            // まだ CreateSession 前/直後など → 待機
+            return;
+        }
+    }
+
+//    TryStartIfReady();
+}
+
+void ALobbyGameMode::Logout(AController* Exiting)
+{
+    Super::Logout(Exiting);
+    UE_LOG(LogTemp, Log, TEXT("Player left: %s"), *GetNameSafe(Exiting));
+}

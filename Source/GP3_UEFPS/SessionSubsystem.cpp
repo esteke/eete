@@ -5,6 +5,10 @@
 #include "OnlineSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
+
+// ユーザー名
+static const FString UserName = TEXT("なまえ");
 
 // UE側で一般的に使われる固定名（"GameSession"）
 static const FName SESSION_NAME = NAME_GameSession;
@@ -55,6 +59,9 @@ void USessionSubsystem::CreateLanSession(int32 PublicConnections)
     Settings.bUseLobbiesIfAvailable = false; // Null/LANではロビー機能は使わない
     Settings.NumPublicConnections = FMath::Max(1, PublicConnections); // 参加枠（ホスト除く枠数でOK）
 
+    // 部屋の名前を設定
+    Settings.Set(FName("SERVER_NAME_KEY"), UserName, EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+
     // コールバック登録
     ClearDelegates();
     OnCreateHandle = Session->AddOnCreateSessionCompleteDelegate_Handle(
@@ -88,11 +95,23 @@ void USessionSubsystem::OnCreateComplete(FName, bool bOk)
     OnCreateFinished.Broadcast(bOk);
     if (!bOk) { ClearDelegates(); return; }
 
-    // セッション開始（内部状態を「スタート」に）
-    Session->StartSession(SESSION_NAME);
+    const FString CurrentMap = GetWorld()->GetOutermost()->GetName(); // "/Game/Maps/Lobby" など
+    UGameplayStatics::OpenLevel(GetWorld(), FName(*CurrentMap), true, TEXT("?listen"));
 
-    UKismetSystemLibrary::PrintString(this, "OnCreateComplete: Success!!",
-        true, true, FColor::Cyan, 4.f, TEXT("None"));
+    // 1フレーム/数百ms遅らせてから StartSession（NetDriver がポート確定後）
+    FTimerHandle Th;
+    GetWorld()->GetTimerManager().SetTimer(Th, [this]()
+        {
+            if (IOnlineSubsystem* OSS = IOnlineSubsystem::Get())
+                if (IOnlineSessionPtr Session = OSS->GetSessionInterface())
+                {
+                    // セッション開始（内部状態を「スタート」に）
+                    Session->StartSession(NAME_GameSession);
+                    UKismetSystemLibrary::PrintString(this, "OnCreateComplete: Success!!",
+                        true, true, FColor::Cyan, 4.f, TEXT("None"));
+                }
+        }, 0.5f, false);
+
 }
 
 void USessionSubsystem::OnStartComplete(FName, bool bOk)
@@ -137,11 +156,18 @@ void USessionSubsystem::OnFindComplete(bool bOk)
             Row.PingMs = R.PingInMs;
             Row.OpenConnections = R.Session.NumOpenPublicConnections;
             Row.MaxConnections = R.Session.SessionSettings.NumPublicConnections;
-            Row.SearchIndex = Index++;
+            Row.SearchIndex = Index;
             LastRows.Add(Row);
 
             UKismetSystemLibrary::PrintString(this, "OnFindComplete: Success!! :" + Row.DisplayName,
                 true, true, FColor::Yellow, 4.f, TEXT("None"));
+            FString room = TEXT("Unknown");
+            R.Session.SessionSettings.Get(FName("SERVER_NAME_KEY"), room);
+
+            // 見つけたセッションにそのままジョイン
+            JoinBySearchIndex(Index);
+
+            Index++;
         }
     }
 
@@ -177,12 +203,19 @@ void USessionSubsystem::OnJoinComplete(FName, EOnJoinSessionCompleteResult::Type
     if (!bOk) { ClearDelegates(); return; }
 
     // 参加先の接続URLを OnlineSubsystem から解決し、クライアント遷移する
-    FString Connect;
-    if (Session->GetResolvedConnectString(SESSION_NAME, Connect))
+    FString addr;
+    if (Session->GetResolvedConnectString(SESSION_NAME, addr, NAME_GamePort))
     {
+        const FString Enc = FGenericPlatformHttp::UrlEncode(UserName);
+        const TCHAR* Sep = addr.Contains(TEXT("?")) ? TEXT("&") : TEXT("?");
+        addr = FString::Printf(TEXT("%s%sNickName=%s"), *addr, Sep, *Enc);
+
         if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
         {
-            PC->ClientTravel(Connect, ETravelType::TRAVEL_Absolute);
+            UKismetSystemLibrary::PrintString(this, "Join & ClientTravel - " + addr,
+                true, true, FColor::Orange, 15.f, TEXT("None"));
+
+            PC->ClientTravel(addr, ETravelType::TRAVEL_Absolute);
         }
     }
     ClearDelegates();
