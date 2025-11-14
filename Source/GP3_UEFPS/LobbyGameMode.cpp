@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "LobbyGameMode.h"
@@ -8,6 +8,7 @@
 #include "OnlineSubsystem.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
+#include "GameFramework/GameStateBase.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "Misc/CommandLine.h"
 
@@ -17,7 +18,7 @@ FString ALobbyGameMode::InitNewPlayer(APlayerController* NewPlayer, const FUniqu
     FString result = Super::InitNewPlayer(NewPlayer, UniqueId, Options, Portal);
 
 
-    // Options ‚©‚ç NickName= ‚ðŽæ“¾iURL ‚É•t‚¯‚½‚â‚Â‚ª‚±‚±‚É—ˆ‚éj
+    // Options ã‹ã‚‰ NickName= ã‚’å–å¾—ï¼ˆURL ã«ä»˜ã‘ãŸã‚„ã¤ãŒã“ã“ã«æ¥ã‚‹ï¼‰
     const FString Key = TEXT("NickName=");
     const FString& OptionsStr = Options;
     FString RawName;
@@ -25,7 +26,7 @@ FString ALobbyGameMode::InitNewPlayer(APlayerController* NewPlayer, const FUniqu
     if (StartPos != INDEX_NONE)
     {
         StartPos += Key.Len();
-        // '&' ‚Ü‚½‚ÍI’[‚Ü‚Å‚ðØ‚èo‚·
+        // '&' ã¾ãŸã¯çµ‚ç«¯ã¾ã§ã‚’åˆ‡ã‚Šå‡ºã™
         int32 EndPos = OptionsStr.Find(TEXT("?"), ESearchCase::IgnoreCase, ESearchDir::FromStart, StartPos);
         if (EndPos == INDEX_NONE)
         {
@@ -37,7 +38,7 @@ FString ALobbyGameMode::InitNewPlayer(APlayerController* NewPlayer, const FUniqu
         }
     }
 
-    // ƒNƒ‰ƒCƒAƒ“ƒg‘¤‚Å URL ƒGƒ“ƒR[ƒh‚µ‚Ä‚¢‚½ê‡‚ÍƒfƒR[ƒh
+    // ã‚¯ãƒ©ã‚¤ã‚¢ãƒ³ãƒˆå´ã§ URL ã‚¨ãƒ³ã‚³ãƒ¼ãƒ‰ã—ã¦ã„ãŸå ´åˆã¯ãƒ‡ã‚³ãƒ¼ãƒ‰
     if (!RawName.IsEmpty())
     {
         FString DecodedName = FGenericPlatformHttp::UrlDecode(RawName);
@@ -55,12 +56,12 @@ void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
 
-    // ƒT[ƒo[ˆÈŠO‚Å‚Íˆ—‚µ‚È‚¢
+    // ã‚µãƒ¼ãƒãƒ¼ä»¥å¤–ã§ã¯å‡¦ç†ã—ãªã„
     if (!HasAuthority()) return;
 
-    // ƒXƒ^ƒ“ƒhƒAƒƒ“iƒlƒbƒgƒ[ƒN‚È‚µj‚È‚ç–³Ž‹
+    // ã‚¹ã‚¿ãƒ³ãƒ‰ã‚¢ãƒ­ãƒ³ï¼ˆãƒãƒƒãƒˆãƒ¯ãƒ¼ã‚¯ãªã—ï¼‰ãªã‚‰ç„¡è¦–
     if (GetNetMode() == NM_Standalone) return;
-    // ƒZƒbƒVƒ‡ƒ“‚ª—§‚Á‚Ä‚¢‚éiListen‰»‚àÏ‚Ýj‚Æ‚«‚¾‚¯ˆµ‚¤
+    // ã‚»ãƒƒã‚·ãƒ§ãƒ³ãŒç«‹ã£ã¦ã„ã‚‹ï¼ˆListenåŒ–ã‚‚æ¸ˆã¿ï¼‰ã¨ãã ã‘æ‰±ã†
 
     IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
     if (OSS)
@@ -68,16 +69,35 @@ void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
         IOnlineSessionPtr Session = OSS->GetSessionInterface();
         if (!Session.IsValid() || !Session->GetNamedSession(NAME_GameSession))
         {
-            // ‚Ü‚¾ CreateSession ‘O/’¼Œã‚È‚Ç ¨ ‘Ò‹@
+            // ã¾ã  CreateSession å‰/ç›´å¾Œãªã© â†’ å¾…æ©Ÿ
             return;
         }
     }
 
-//    TryStartIfReady();
+    TryStartIfReady();
 }
 
 void ALobbyGameMode::Logout(AController* Exiting)
 {
     Super::Logout(Exiting);
-    UE_LOG(LogTemp, Log, TEXT("Player left: %s"), *GetNameSafe(Exiting));
+    auto str = FString::Printf(TEXT("Players left: %s"), *GetNameSafe(Exiting));
+    UKismetSystemLibrary::PrintString(this, str, false, true, FColor::Red, 6.f, TEXT("None"));
+}
+
+
+void ALobbyGameMode::TryStartIfReady()
+{
+    const int32 NumConnected = GameState ? GameState->PlayerArray.Num() : 0;
+    auto str = FString::Printf(TEXT("Players: %d"), NumConnected);
+    UKismetSystemLibrary::PrintString(this, str, true, true, FColor::Green, 6.f, TEXT("None"));
+
+    if (NumConnected >= MaxPlayers)
+    {
+        // ç›´å¾Œã®åŒæœŸã‚ºãƒ¬å›žé¿ã§æ¬¡ãƒ•ãƒ¬ãƒ¼ãƒ ã«é·ç§»
+        FTimerHandle TH;
+        GetWorldTimerManager().SetTimer(TH, [this]()
+            {
+                GetWorld()->ServerTravel(TEXT("/FpsFramework/Maps/FpsGameMap?listen"), /*bAbsolute=*/true);
+            }, 0.1f, false);
+    }
 }

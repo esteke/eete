@@ -52,12 +52,13 @@ void USessionSubsystem::CreateLanSession(int32 PublicConnections)
 
     // === セッション設定 ===
     FOnlineSessionSettings Settings;
-    Settings.bIsLANMatch = true;  // LAN検索対象にする（Null Subsystem 前提）
+    Settings.bIsLANMatch = false;      // LANではなくインターネットに
     Settings.bShouldAdvertise = true;  // Find に出す
     Settings.bAllowJoinInProgress = true;  // 途中参加OK
-    Settings.bUsesPresence = false; // Null/LANなら不要
+    Settings.bUsesPresence = true;     // Presenceを有効にしてマッチング可視化
     Settings.bUseLobbiesIfAvailable = false; // Null/LANではロビー機能は使わない
     Settings.NumPublicConnections = FMath::Max(1, PublicConnections); // 参加枠（ホスト除く枠数でOK）
+    Settings.bAllowJoinViaPresence = true;
 
     // 部屋の名前を設定
     Settings.Set(FName("SERVER_NAME_KEY"), UserName, EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);

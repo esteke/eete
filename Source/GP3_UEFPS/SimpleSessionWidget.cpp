@@ -8,8 +8,6 @@
 
 void USimpleSessionWidget::CreateSession()
 {
-	UKismetSystemLibrary::PrintString(this, "CreateSession",
-		true, true, FColor::Yellow, 4.f, TEXT("None"));
 	if (auto* Sub = GetGameInstance()->GetSubsystem<USessionSubsystem>())
 	{
 		Sub->CreateLanSession(3);
@@ -19,8 +17,6 @@ void USimpleSessionWidget::CreateSession()
 
 void USimpleSessionWidget::FindSession()
 {
-	UKismetSystemLibrary::PrintString(this, "FindSession",
-		true, true, FColor::Yellow, 4.f, TEXT("None"));
 	if (auto* Sub = GetGameInstance()->GetSubsystem<USessionSubsystem>())
 	{
 		Sub->FindLanSessions();
